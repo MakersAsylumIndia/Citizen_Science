@@ -9,31 +9,16 @@ from GPSPhoto import gpsphoto
 import folium
 
 # Load the image classification model
-model = load_model('C:/users/tanuj/desktop/makers asylum/keras_model.h5')
+model = load_model('./keras_model.h5')
 
 # Load the labels
-class_names = [class_name.strip() for class_name in open('C:/users/tanuj/desktop/makers asylum/labels.txt', 'r').readlines()]
+class_names = [class_name.strip() for class_name in open('./labels.txt', 'r').readlines()]
 
 # Initialize PaddleOCR
 ocr = PaddleOCR(use_angle_cls=True, lang='en')
 
-# Define the folder path
-folder_path = "C:/users/tanuj/desktop/makers asylum/FINAL_TEST/"
-
-def extraction_exif(image_list):
-        data_location = []
-        for a in image_list:
-            b = gpsphoto.getGPSData(os.path.join(os.getcwd(), a))
-            if b is not None and 'Latitude' in b and 'Longitude' in b:
-                data_location.append([b['Latitude'], b['Longitude']])
-
-        if data_location:
-            df = pd.DataFrame(data=data_location, index=image_list, columns=['Latitude', 'Longitude'])
-            df.to_csv("./coordinates.csv")
-        else:
-            df = pd.DataFrame(columns=['Latitude', 'Longitude'])
-
-        return df
+# Define the folder path containing the images
+folder_path = "./images/"
 
 def classify_images_with_ocr(image_folder):
     data = []
@@ -89,26 +74,6 @@ def classify_images_with_ocr(image_folder):
     # Create a dataframe from the collected data
     df = pd.DataFrame(data)
 
-    # Call the extraction_exif function to get GPS coordinates
-    gps_df = extraction_exif(image_list)
-
-    # Merge the classification results with the GPS coordinates based on the image filenames
-    df = pd.merge(df, gps_df, left_on='Image', right_index=True, how='left')
-
-    # Save the GPS coordinates to a CSV file
-    gps_df.to_csv("./coordinates.csv")
-
-    if not gps_df.empty:
-        # Create a folium map and plot the coordinates
-        sw = (gps_df['Latitude'].max() + 3, gps_df['Longitude'].min() - 3)
-        ne = (gps_df['Latitude'].min() - 3, gps_df['Longitude'].max() + 3)
-        m = folium.Map()
-        for lat, lon in zip(gps_df['Latitude'].values, gps_df['Longitude'].values):
-            if not pd.isnull(lat) and not pd.isnull(lon):
-                folium.CircleMarker([lat, lon]).add_to(m)
-        m.fit_bounds([sw, ne])
-        m.save("map.html")
-
     # Return the dataframe with classification results
     return df
 
@@ -120,7 +85,7 @@ print(result_df)
 # Check if the classification_results.csv file exists and has columns
 if not os.path.isfile('classification_results.csv') or os.stat('classification_results.csv').st_size == 0:
     # If the file does not exist or is empty, create a new empty CSV file with column headers
-    empty_df = pd.DataFrame(columns=['Image', 'Class', 'Confidence', 'OCR Text', 'Latitude', 'Longitude'])
+    empty_df = pd.DataFrame(columns=['Image', 'Class', 'Confidence', 'OCR Text'])
     empty_df.to_csv('classification_results.csv', index=False)
 
 # Load the existing classification results CSV
@@ -131,3 +96,89 @@ merged_df = pd.merge(classification_results, result_df, on='Image', how='outer')
 
 # Save the merged dataframe to the same CSV file
 merged_df.to_csv('classification_results.csv', index=False)
+
+import os
+import pandas as pd
+import folium
+from PIL import Image
+from PIL.ExifTags import TAGS, GPSTAGS
+
+def get_exif_data(image):
+    """Extracts EXIF data from the image file."""
+    exif_data = {}
+    img = Image.open(image)
+    info = img._getexif()
+    if info:
+        for tag, value in info.items():
+            decoded = TAGS.get(tag, tag)
+            exif_data[decoded] = value
+    return exif_data
+
+def get_gps_info(exif_data):
+    """Extracts GPS information from the EXIF data."""
+    if 'GPSInfo' in exif_data:
+        gps_info = {}
+        for key in exif_data['GPSInfo'].keys():
+            decode = GPSTAGS.get(key, key)
+            gps_info[decode] = exif_data['GPSInfo'][key]
+
+        # Converts the GPS latitude and longitude to decimal degrees
+        lat = gps_info['GPSLatitude']
+        lat_ref = gps_info['GPSLatitudeRef']
+        lon = gps_info['GPSLongitude']
+        lon_ref = gps_info['GPSLongitudeRef']
+
+        lat_decimal = (lat[0].numerator / lat[0].denominator +
+                       lat[1].numerator / lat[1].denominator / 60 +
+                       lat[2].numerator / lat[2].denominator / 3600) * (-1 if lat_ref == 'S' else 1)
+        lon_decimal = (lon[0].numerator / lon[0].denominator +
+                       lon[1].numerator / lon[1].denominator / 60 +
+                       lon[2].numerator / lon[2].denominator / 3600) * (-1 if lon_ref == 'W' else 1)
+
+        gps_info['GPSLatitude'] = lat_decimal
+        gps_info['GPSLongitude'] = lon_decimal
+
+        return gps_info
+
+image_list = []
+for file_name in os.listdir(folder_path):
+    if file_name.endswith('.jpg') or file_name.endswith('.png'):
+        image_path = os.path.join(folder_path, file_name)
+        image_list.append(image_path)
+
+lat = []
+long = []
+img_name = []
+for image_path in image_list:
+    exif_data = get_exif_data(image_path)
+    gps_info = get_gps_info(exif_data)
+    if gps_info is not None and 'GPSLatitude' in gps_info and 'GPSLongitude' in gps_info:
+        a = gps_info['GPSLatitude']
+        b = gps_info['GPSLongitude']
+        c = image_path
+        lat.append(a)
+        long.append(b)
+        img_name.append(c)
+
+data = {"Image Name": img_name, "Latitude": lat, "Longitude": long}
+df = pd.DataFrame(data)
+
+# Save DataFrame to CSV
+csv_file = 'image_coordinates.csv'
+df.to_csv(csv_file, index=False)
+
+# Create Folium map
+center_lat = df['Latitude'].mean()
+center_long = df['Longitude'].mean()
+map_osm = folium.Map(location=[center_lat, center_long], zoom_start=12)
+
+# Add markers to the map
+for _, row in df.iterrows():
+    folium.Marker([row['Latitude'], row['Longitude']], popup=row['Image Name']).add_to(map_osm)
+
+# Save the map to an HTML file
+map_file = 'plotted_map.html'
+map_osm.save(map_file)
+
+print("CSV file saved:", csv_file)
+print("Map file saved:", map_file)
