@@ -7,6 +7,7 @@ from paddleocr import PaddleOCR, draw_ocr
 from PIL import Image, ImageFont
 from GPSPhoto import gpsphoto
 import folium
+import argparse
 
 # Load the image classification model
 model = load_model('./keras_model.h5')
@@ -18,7 +19,11 @@ class_names = [class_name.strip() for class_name in open('./labels.txt', 'r').re
 ocr = PaddleOCR(use_angle_cls=True, lang='en')
 
 # Define the folder path containing the images
-folder_path = "./images/"
+parser = argparse.ArgumentParser(description='Image classification and OCR script')
+parser.add_argument('folder_path', type=str, help='Path to the folder containing images')
+args = parser.parse_args()
+
+folder_path = args.folder_path
 
 def classify_images_with_ocr(image_folder):
     data = []
@@ -177,7 +182,7 @@ for _, row in df.iterrows():
     folium.Marker([row['Latitude'], row['Longitude']], popup=row['Image Name']).add_to(map_osm)
 
 # Save the map to an HTML file
-map_file = 'plotted_map.html'
+map_file = './static/plotted_map.html'
 map_osm.save(map_file)
 
 print("CSV file saved:", csv_file)

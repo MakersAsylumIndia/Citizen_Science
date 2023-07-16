@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project RiverWatch</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #121212;
+            color: #FFFFFF;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 2.5%;
+            margin-bottom: 2.5%;
+            position: relative;
+        }
+
+        .btn:hover {
+            background-color: #45a049;
+        }
+
+        #folderPath {
+            width: 100%;
+            padding: 10px;
+            margin-top: 4%;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        #responseMessage {
+            color: green;
+            margin-top: 1.5%;
+            margin-left: 18%;
+        }
+
+        #errorMessage {
+            color: red;
+            margin-top: 1.5%;
+            margin-left: 18%;
+        }
+        .spinner {
+            display: none;
+            border: 4px solid rgba(255, 255, 255, 0.3); /* Darken the border color */
+            border-top: 4px solid #00FF00; /* Set the top border color to black (#000000) */
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 2s linear infinite;
+            position: absolute;
+            top: 10%;
+            left: 150px; /* Adjust the distance from the right to your preference */
+            transform: translateY(-50%); /* Center the spinner vertically */
+        }
+
+
+        .btn.loading .spinner {
+        display: inline-block;
+        }
+
+        @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+        100% {
+            transform: rotate(360deg);
+        }
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Enter a Folder Path</h2>
+        <input type="text" id="folderPath" placeholder="Enter folder path here">
+        <button id="runScript" class="btn" onclick="runPythonScript()">
+            <span class="spinner"></span> <!-- SVG spinner will be added here -->
+            Run Python Script
+          </button>          
+        <p>Please do not press the button more than once, the script takes time to run.</p>
+        <div id="responseMessage"></div>
+        <div id="errorMessage"></div>
+    </div>
+
+    <script>
+        function displayResponseMessage(message) {
+            const responseMessage = document.getElementById('responseMessage');
+            responseMessage.textContent = message;
+        }
+
+        function displayErrorMessage(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = message;
+        }
+
+        function runPythonScript() {
+            
+            const folderInput = document.getElementById('folderPath');
+            const folderPath = folderInput.value.trim(); // Get the folder path from the text input
+            if (folderPath) {
+                const button = document.getElementById('runScript');
+                button.classList.add('loading'); // Show the spinner
+                fetch('/run_script', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ folder: folderPath })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Handle the response from the server
+                    if ('error' in data) {
+                        // If the server returns an error, display the error message to the user
+                        displayErrorMessage(data.error);
+                        displayResponseMessage(""); // Clear the response message
+                    } else {
+                        // Handle the successful response
+                        displayResponseMessage(data.message);
+                        displayErrorMessage(""); // Clear the error message
+                    }
+                    button.classList.remove('loading'); // Hide the spinner
+                })
+                .catch(error => {
+                    // Handle any fetch or network-related errors
+                    console.error('Error:', error);
+                    displayErrorMessage("Error occurred. Please try again.");
+                    displayResponseMessage(""); // Clear the response message
+                    button.classList.remove('loading'); // Hide the spinner
+                });
+            
+            }
+            else{
+                displayErrorMessage("Please enter a folder path.");
+                displayResponseMessage(""); // Clear the response message
+            }
+        }
+    </script>
+</body>
+</html>
