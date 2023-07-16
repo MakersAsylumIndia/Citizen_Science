@@ -1,0 +1,9 @@
+Flask
+opencv-python
+numpy
+pandas
+Keras
+paddleocr
+Pillow
+gpsphoto
+folium
